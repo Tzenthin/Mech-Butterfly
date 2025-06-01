@@ -5,7 +5,7 @@ from machine import Pin, ADC
 from Kang_Queue import Queue
 
 class Battery():
-    def __init__(self, pin=1, bat_type=3.7):
+    def __init__(self, pin=4):
         self.adc = ADC(Pin(pin))
         self.adc.atten(ADC.ATTN_11DB)  #开启衰减，量程增大到3.3V
         self.adc_offset = 0
@@ -15,20 +15,15 @@ class Battery():
         self.adc_average_counter = 0
         self.adc_average_time = 5
         self.use_low_pass = True
-        self.alpha = 0.99  #low pass coff
+        self.alpha = 0.97  #low pass coff
         self.queue = Queue()
         self._offset()
         #assert 0==1
-        self.bat_type = bat_type
-        #这里设置充放电的最高和最低的电压，保护电池
-
-        self.Volt_min = 7.0
-        self.Volt_max = 8.4
         
     def _offset(self):
         adc_sum = 0
         for i in range(self.offset_cnt):
-            adc_value = self.adc.read_uv() #* 3.3 / 4095
+            adc_value = self.adc.read() #* 3.3 / 4095
             adc_sum += adc_value
             if i >= self.offset_cnt - self.adc_average_time:
                 #self.temp.append(adc_value)
@@ -71,20 +66,21 @@ class Battery():
             return self.smoothed_last'''
     
     def normalization(self, adc_raw_data):  # input: 0~4096
-        
-        normalized_data = (adc_raw_data-self.adc_offset)/1000000#3.3/4096   # 0~3.3
+        Volt_min = 3.3
+        Volt_max = 4.2
+        normalized_data = (adc_raw_data-self.adc_offset)*3.3/4096   # 0~3.3
         # recording to the real circuit, plus 2 is the real battery voltage
-        sample_volt = normalized_data*4  
-        cal_volt = sample_volt#self._calibration(sample_volt)
+        sample_volt = normalized_data*2  
+        cal_volt = self._calibration(sample_volt)
         #print(cal_volt)
-        percent = int((cal_volt - self.Volt_min) / (self.Volt_max - self.Volt_min)*100)  # 0~100
+        percent = int((cal_volt-Volt_min)/(Volt_max-Volt_min)*100)  # 0~100
         #if normalized_data<0: normalized_data=0
         #if normalized_data>1000: normalized_data=1000
         return cal_volt, percent
 
     
     def battery_read_remaining(self):
-        adc_value = self.adc.read_uv() #* 3.3 / 4095
+        adc_value = self.adc.read() #* 3.3 / 4095
         adc_result = self.data_smooth(adc_value)
         volt_result, percent_result = self.normalization(adc_result)
         return volt_result, percent_result
@@ -92,9 +88,9 @@ class Battery():
 
 
 if __name__ == "__main__":
-    bat = Battery(0, bat_type=3.7)
+    bat = Battery(4)
     while True:
         adc_data = bat.battery_read_remaining()
         if adc_data != None:
             print(adc_data)
-        time.sleep(0.05)
+        time.sleep(0.01)
